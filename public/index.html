@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Investments | Secure Portal</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #1a365d; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background: #1a365d; color: white; }
+        .admin-panel { margin-top: 30px; padding: 15px; background: #fff5f5; border: 1px dashed #e53e3e; border-radius: 6px; }
+        button { background: #3182ce; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #2b6cb0; }
+        input[type="file"] { margin-bottom: 10px; }
+        pre { background: #2d3748; color: #edf2f7; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Apex Capital Dashboard</h1>
+        <p>Welcome back, Investor. Here is your current portfolio breakdown:</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Asset</th>
+                    <th>Value</th>
+                    <th>Allocation</th>
+                </tr>
+            </thead>
+            <tbody id="portfolio-body">
+                <tr><td colspan="3">Loading portfolio...</td></tr>
+            </tbody>
+        </table>
+
+        <!-- Hidden Admin / Testing Panel -->
+        <div class="admin-panel">
+            <h2>Internal Maintenance Console</h2>
+            <p><small>Authorized personnel only. Upload diagnostic scripts below.</small></p>
+            
+            <input type="file" id="scriptFile"><br>
+            <button onclick="uploadScript()">Upload Script</button>
+            
+            <h3>Execution Output</h3>
+            <pre id="output">No execution output yet.</pre>
+        </div>
+    </div>
+
+    <script>
+        // Fetch Portfolio Data
+        fetch('/api/investments')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('portfolio-body');
+                tbody.innerHTML = '';
+                data.portfolio.forEach(item => {
+                    tbody.innerHTML += `<tr><td>${item.asset}</td><td>$${item.value.toLocaleString()}</td><td>${item.allocation}</td></tr>`;
+                });
+            });
+
+        // Upload and Trigger RCE Script
+        async function uploadScript() {
+            const fileInput = document.getElementById('scriptFile');
+            if (fileInput.files.length === 0) {
+                alert('Please select a file first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('scriptFile', fileInput.files[0]);
+
+            try {
+                // Step 1: Upload File
+                const uploadRes = await fetch('/admin/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const uploadResult = await uploadRes.json();
+
+                if (!uploadResult.success) {
+                    document.getElementById('output').innerText = 'Upload failed: ' + uploadResult.error;
+                    return;
+                }
+
+                // Step 2: Trigger Execution via RCE Endpoint
+                const filename = uploadResult.filename;
+                const execRes = await fetch(`/admin/exec/${filename}`);
+                const execResult = await execRes.json();
+
+                if (execResult.success) {
+                    document.getElementById('output').innerText = `STDOUT:\n${execResult.stdout}\nSTDERR:\n${execResult.stderr}`;
+                } else {
+                    document.getElementById('output').innerText = `Execution Error:\n${execResult.error}\n${execResult.stderr || ''}`;
+                }
+            } catch (err) {
+                document.getElementById('output').innerText = 'Request failed: ' + err.message;
+            }
+        }
+    </script>
+</body>
+</html>
